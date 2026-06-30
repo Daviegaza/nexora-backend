@@ -15,7 +15,10 @@ import { logger } from './lib/logger.js';
 import { registerRoutes } from './routes/index.js';
 
 async function bootstrap() {
-  const app = Fastify({ loggerInstance: logger, trustProxy: true }).withTypeProvider<ZodTypeProvider>();
+  const app = Fastify({
+    loggerInstance: logger,
+    trustProxy: true,
+  }).withTypeProvider<ZodTypeProvider>();
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
