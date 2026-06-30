@@ -1,0 +1,480 @@
+// NEXORA AI — Postgres schema (Prisma)
+// Multi-tenant by `workspaceId`. Every business-domain row is scoped.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Identity ──────────────────────────────────────────────────────────────
+enum Role {
+  super_admin
+  admin
+  owner
+  director
+  branch_manager
+  supervisor
+  accountant
+  inventory_manager
+  hr_manager
+  sales_agent
+  cashier
+  employee
+}
+
+model Workspace {
+  id            String   @id @default(cuid())
+  name          String
+  kraPin        String?
+  etimsTin      String?
+  defaultBranchId String?
+  plan          String   @default("free")
+  createdAt     DateTime @default(now())
+
+  users         User[]
+  branches      Branch[]
+  products      Product[]
+  customers     Customer[]
+  suppliers     Supplier[]
+  transactions  Transaction[]
+  invoices      Invoice[]
+  leads         Lead[]
+  employees     Employee[]
+  payrollRuns   PayrollRun[]
+  purchaseOrders PurchaseOrder[]
+  chamaGroups   ChamaGroup[]
+  customRoles   CustomRole[]
+}
+
+model User {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  email       String   @unique
+  phone       String?
+  name        String
+  passwordHash String
+  role        Role     @default(employee)
+  branchId    String?
+  branch      Branch?  @relation(fields: [branchId], references: [id])
+  customRoleId String?
+  customRole   CustomRole? @relation(fields: [customRoleId], references: [id])
+  permissionsAdd     String[] @default([])
+  permissionsRemove  String[] @default([])
+  status      String   @default("active")
+  mfaSecret   String?
+  lastLoginAt DateTime?
+  createdAt   DateTime @default(now())
+  refreshTokens RefreshToken[]
+  auditLogs   AuditLog[]
+  @@index([workspaceId, role])
+}
+
+model CustomRole {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  capabilities String[] @default([])
+  createdBy   String
+  createdAt   DateTime @default(now())
+  users       User[]
+  @@unique([workspaceId, name])
+}
+
+model RefreshToken {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String   @unique
+  userAgent   String?
+  ipAddress   String?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime @default(now())
+  @@index([userId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  actorId     String?
+  actor       User?    @relation(fields: [actorId], references: [id])
+  action      String
+  resource    String
+  resourceId  String?
+  meta        Json?
+  ip          String?
+  createdAt   DateTime @default(now())
+  @@index([workspaceId, resource, createdAt])
+}
+
+// ── Org structure ─────────────────────────────────────────────────────────
+model Branch {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  county      String
+  location    String?
+  phone       String?
+  managerId   String?
+  status      String   @default("active")
+  openedDate  DateTime?
+  lat         Decimal?
+  lng         Decimal?
+  createdAt   DateTime @default(now())
+  users       User[]
+  transactions Transaction[]
+  stockMovements StockMovement[]
+  purchaseOrders PurchaseOrder[]
+  @@index([workspaceId])
+}
+
+model Employee {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  employeeNo  String
+  userId      String?
+  name        String
+  email       String?
+  phone       String?
+  position    String
+  department  String?
+  branchId    String?
+  salary      Decimal  @db.Decimal(14,2) @default(0)
+  allowances  Decimal  @db.Decimal(14,2) @default(0)
+  deductions  Decimal  @db.Decimal(14,2) @default(0)
+  nationalId  String?
+  kraPin      String?
+  nhif        String?
+  nssf        String?
+  bankAccount String?
+  mpesaPhone  String?
+  joinDate    DateTime?
+  status      String   @default("active")
+  leaveRequests LeaveRequest[]
+  attendance Attendance[]
+  @@unique([workspaceId, employeeNo])
+  @@index([workspaceId, status])
+}
+
+// ── Products + inventory ──────────────────────────────────────────────────
+model Product {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sku         String
+  name        String
+  barcode     String?
+  category    String
+  price       Decimal  @db.Decimal(14,2)
+  cost        Decimal  @db.Decimal(14,2)
+  unit        String   @default("pc")
+  taxRate     Decimal  @db.Decimal(5,4) @default(0.16)
+  minStock    Int      @default(0)
+  image       String?
+  expiryDate  DateTime?
+  supplierId  String?
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  stockLevels StockLevel[]
+  stockMovements StockMovement[]
+  cartItems   CartItemRecord[]
+  @@unique([workspaceId, sku])
+  @@index([workspaceId, barcode])
+  @@index([workspaceId, category])
+}
+
+model StockLevel {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branchId    String
+  quantity    Int      @default(0)
+  reorderPoint Int     @default(0)
+  updatedAt   DateTime @updatedAt
+  @@unique([productId, branchId])
+}
+
+model StockMovement {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  branchId    String
+  branch      Branch   @relation(fields: [branchId], references: [id])
+  type        String
+  quantity    Int
+  reference   String?
+  performedBy String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  @@index([productId, branchId, createdAt])
+}
+
+// ── Customers + sales ─────────────────────────────────────────────────────
+model Customer {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  email       String?
+  phone       String?
+  county      String?
+  town        String?
+  type        String   @default("retail")
+  loyalty     Int      @default(0)
+  totalSpent  Decimal  @db.Decimal(16,2) @default(0)
+  orderCount  Int      @default(0)
+  notes       String?
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  transactions Transaction[]
+  invoices    Invoice[]
+  @@index([workspaceId, phone])
+  @@index([workspaceId, email])
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  receiptNo   String
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  branchId    String
+  branch      Branch   @relation(fields: [branchId], references: [id])
+  cashierId   String
+  items       CartItemRecord[]
+  subtotal    Decimal  @db.Decimal(14,2)
+  discount    Decimal  @db.Decimal(14,2) @default(0)
+  tax         Decimal  @db.Decimal(14,2) @default(0)
+  total       Decimal  @db.Decimal(14,2)
+  paymentMethod String
+  mpesaRef    String?
+  status      String   @default("completed")
+  etimsStatus String   @default("pending")
+  etimsRef    String?
+  etimsQR     String?
+  createdAt   DateTime @default(now())
+  @@unique([workspaceId, receiptNo])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, branchId, createdAt])
+}
+
+model CartItemRecord {
+  id           String      @id @default(cuid())
+  transactionId String?
+  transaction  Transaction? @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  invoiceId    String?
+  invoice      Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product     @relation(fields: [productId], references: [id])
+  name         String
+  price        Decimal     @db.Decimal(14,2)
+  quantity     Int
+  discount     Decimal     @db.Decimal(14,2) @default(0)
+  total        Decimal     @db.Decimal(14,2)
+}
+
+model Invoice {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  number      String
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  items       CartItemRecord[]
+  subtotal    Decimal  @db.Decimal(14,2)
+  tax         Decimal  @db.Decimal(14,2) @default(0)
+  total       Decimal  @db.Decimal(14,2)
+  status      String   @default("draft")
+  issuedDate  DateTime?
+  dueDate     DateTime?
+  paidDate    DateTime?
+  etimsRef    String?
+  createdAt   DateTime @default(now())
+  @@unique([workspaceId, number])
+  @@index([workspaceId, status])
+}
+
+// ── CRM ───────────────────────────────────────────────────────────────────
+model Lead {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  company     String?
+  email       String?
+  phone       String?
+  source      String?
+  stage       String   @default("new")
+  value       Decimal  @db.Decimal(14,2) @default(0)
+  probability Int      @default(10)
+  assignedTo  String?
+  nextFollowUp DateTime?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  @@index([workspaceId, stage])
+}
+
+// ── Procurement ───────────────────────────────────────────────────────────
+model Supplier {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  contact     String?
+  email       String?
+  phone       String?
+  county      String?
+  category    String?
+  rating      Decimal  @db.Decimal(2,1) @default(0)
+  paymentTerms String?
+  leadTime    String?
+  status      String   @default("active")
+  purchaseOrders PurchaseOrder[]
+  @@index([workspaceId])
+}
+
+model PurchaseOrder {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  poNumber    String
+  supplierId  String
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  branchId    String
+  branch      Branch   @relation(fields: [branchId], references: [id])
+  items       Json
+  total       Decimal  @db.Decimal(14,2)
+  status      String   @default("draft")
+  expectedDelivery DateTime?
+  createdBy   String
+  createdAt   DateTime @default(now())
+  @@unique([workspaceId, poNumber])
+}
+
+// ── HR + payroll ─────────────────────────────────────────────────────────
+model PayrollRun {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  period      String
+  employees   Int
+  grossPay    Decimal  @db.Decimal(16,2)
+  deductions  Decimal  @db.Decimal(16,2)
+  netPay      Decimal  @db.Decimal(16,2)
+  status      String   @default("draft")
+  processedBy String?
+  processedAt DateTime?
+  @@unique([workspaceId, period])
+}
+
+model Attendance {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date        DateTime
+  checkIn     DateTime?
+  checkOut    DateTime?
+  status      String   @default("present")
+  overtime    Int      @default(0)
+  @@unique([employeeId, date])
+}
+
+model LeaveRequest {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type        String
+  startDate   DateTime
+  endDate     DateTime
+  days        Int
+  reason      String?
+  status      String   @default("pending")
+  approvedBy  String?
+  requestedAt DateTime @default(now())
+  @@index([employeeId, status])
+}
+
+// ── Chama / group money ───────────────────────────────────────────────────
+model ChamaGroup {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  monthlyContribution Decimal @db.Decimal(14,2) @default(0)
+  createdAt   DateTime @default(now())
+  members     ChamaMember[]
+  contributions ChamaContribution[]
+  loans       ChamaLoan[]
+  rota        ChamaRotaSlot[]
+}
+
+model ChamaMember {
+  id          String   @id @default(cuid())
+  groupId     String
+  group       ChamaGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name        String
+  phone       String
+  joinedAt    DateTime @default(now())
+  role        String   @default("member")  // chair | treasurer | secretary | member
+}
+
+model ChamaContribution {
+  id          String   @id @default(cuid())
+  groupId     String
+  group       ChamaGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  memberId    String
+  amount      Decimal  @db.Decimal(14,2)
+  period      String
+  paidAt      DateTime @default(now())
+  mpesaRef    String?
+  status      String   @default("confirmed")
+}
+
+model ChamaLoan {
+  id          String   @id @default(cuid())
+  groupId     String
+  group       ChamaGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  memberId    String
+  principal   Decimal  @db.Decimal(14,2)
+  interestRate Decimal @db.Decimal(5,4) @default(0.05)
+  termMonths  Int
+  status      String   @default("pending")
+  approvedBy  String?
+  disbursedAt DateTime?
+}
+
+model ChamaRotaSlot {
+  id          String   @id @default(cuid())
+  groupId     String
+  group       ChamaGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  memberId    String
+  period      String
+  amount      Decimal  @db.Decimal(14,2)
+  status      String   @default("scheduled")
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────
+model Notification {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String?
+  title       String
+  message     String
+  type        String   @default("info")
+  read        Boolean  @default(false)
+  href        String?
+  createdAt   DateTime @default(now())
+  @@index([workspaceId, userId, read])
+}

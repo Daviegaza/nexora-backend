@@ -1,0 +1,81 @@
+// Mirror of frontend/src/constants/permissions.ts + utils/permissions.ts.
+// Source of truth for authorization on the server.
+
+export const ROLE_CAPS: Record<string, ReadonlyArray<string>> = {
+  super_admin: ['*'],
+  admin:       ['*'],
+  owner:       ['*'],
+  director:    ['*'],
+  branch_manager: [
+    'nav:/pos','nav:/inventory','nav:/crm','nav:/customers','nav:/employees',
+    'nav:/suppliers','nav:/reports','nav:/analytics','nav:/ai','nav:/chama',
+    'pos.sell','pos.refund','pos.void','pos.discount.custom',
+    'pos.shift.open','pos.shift.close','pos.cash.drop',
+    'products.read','products.update',
+    'inventory.read','inventory.adjust','inventory.transfer',
+    'customers.read','customers.create','customers.update',
+    'crm.read','crm.write','crm.assign',
+    'employees.read','employees.update',
+    'suppliers.read','suppliers.write',
+    'purchaseorders.create','purchaseorders.approve','purchaseorders.receive',
+    'reports.view','reports.export','analytics.view','ai.use','chama.read','chama.write',
+    'etims.file','mpesa.stk','mpesa.reconcile',
+  ],
+  supervisor: [
+    'nav:/pos','nav:/inventory','nav:/crm','nav:/customers','nav:/employees','nav:/reports','nav:/ai',
+    'pos.sell','pos.refund','pos.void','pos.discount.custom','pos.shift.open','pos.shift.close',
+    'products.read','inventory.read','inventory.adjust',
+    'customers.read','customers.create','customers.update',
+    'employees.read','reports.view','ai.use','etims.file','mpesa.stk',
+  ],
+  accountant: [
+    'nav:/accounting','nav:/payroll','nav:/customers','nav:/suppliers','nav:/reports','nav:/analytics','nav:/ai',
+    'accounting.read','accounting.write','accounting.approve',
+    'invoices.create','invoices.send','invoices.cancel','invoices.write_off',
+    'payroll.read','payroll.run','payroll.approve',
+    'customers.read','suppliers.read',
+    'reports.view','reports.export','analytics.view','ai.use',
+    'etims.file','etims.cancel','mpesa.reconcile',
+  ],
+  inventory_manager: [
+    'nav:/inventory','nav:/suppliers','nav:/reports','nav:/ai',
+    'products.read','products.create','products.update',
+    'inventory.read','inventory.adjust','inventory.transfer','inventory.recount',
+    'suppliers.read','suppliers.write',
+    'purchaseorders.create','purchaseorders.receive',
+    'reports.view','ai.use',
+  ],
+  hr_manager: [
+    'nav:/hr','nav:/payroll','nav:/employees','nav:/reports','nav:/ai',
+    'hr.read','hr.write','hr.leave.approve','hr.discipline',
+    'employees.read','employees.create','employees.update','employees.terminate',
+    'payroll.read','payroll.run','reports.view','reports.export','ai.use',
+  ],
+  sales_agent: [
+    'nav:/pos','nav:/crm','nav:/customers','nav:/ai',
+    'pos.sell','pos.shift.open','pos.shift.close',
+    'customers.read','customers.create','customers.update',
+    'crm.read','crm.write','ai.use',
+  ],
+  cashier: [
+    'nav:/pos','nav:/customers',
+    'pos.sell','pos.shift.open','pos.shift.close',
+    'customers.read','customers.create',
+  ],
+  employee: ['nav:/ai', 'ai.use'],
+};
+
+export function resolveCaps(user: {
+  role: string;
+  permissionsAdd?: string[] | null;
+  permissionsRemove?: string[] | null;
+  customRole?: { capabilities: string[] } | null;
+}): Set<string> {
+  if (user.customRole) return new Set(user.customRole.capabilities);
+  const base = ROLE_CAPS[user.role] ?? [];
+  const set = new Set<string>(base);
+  if (set.has('*')) return set;
+  user.permissionsAdd?.forEach((c) => set.add(c));
+  user.permissionsRemove?.forEach((c) => set.delete(c));
+  return set;
+}
