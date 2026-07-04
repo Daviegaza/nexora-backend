@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { calcPayroll, calcNssf, calcShif, calcAhl, calcPayeBrackets, isValidKraPin } from '../src/lib/kra-tax.js';
+import {
+  calcPayroll,
+  calcNssf,
+  calcShif,
+  calcAhl,
+  calcPayeBrackets,
+  isValidKraPin,
+} from '../src/lib/kra-tax.js';
 
 describe('kra-tax — Kenya statutory deductions', () => {
   it('NSSF Year-4 caps at KES 6,480 each side for gross >= UEL', () => {
@@ -49,7 +56,7 @@ describe('kra-tax — Kenya statutory deductions', () => {
     expect(isValidKraPin('A123456789Z')).toBe(true);
     expect(isValidKraPin('P987654321Q')).toBe(true);
     expect(isValidKraPin('B123456789Z')).toBe(false); // wrong prefix
-    expect(isValidKraPin('A12345678Z')).toBe(false);  // too short
+    expect(isValidKraPin('A12345678Z')).toBe(false); // too short
     expect(isValidKraPin('random')).toBe(false);
   });
 });

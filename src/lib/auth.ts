@@ -52,8 +52,13 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply): Pro
   }
   const caps = resolveCaps(user);
   return {
-    id: user.id, workspaceId: user.workspaceId, email: user.email, name: user.name,
-    role: user.role, branchId: user.branchId, caps: Array.from(caps),
+    id: user.id,
+    workspaceId: user.workspaceId,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    branchId: user.branchId,
+    caps: Array.from(caps),
   };
 }
 

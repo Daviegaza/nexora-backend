@@ -54,9 +54,9 @@ const NITA_LEVY = 50; // KES 50/employee/month if >= 1 employee
 
 // PAYE brackets (monthly, 2024+ Finance Act). Ordered ascending.
 const PAYE_BRACKETS_MONTHLY: Array<{ upTo: number; rate: number }> = [
-  { upTo: 24_000, rate: 0.10 },
+  { upTo: 24_000, rate: 0.1 },
   { upTo: 32_333, rate: 0.25 },
-  { upTo: 500_000, rate: 0.30 },
+  { upTo: 500_000, rate: 0.3 },
   { upTo: 800_000, rate: 0.325 },
   { upTo: Infinity, rate: 0.35 },
 ];
@@ -125,9 +125,7 @@ export function calcPayroll(input: PayrollInput): PayrollBreakdown {
   );
   const payeNet = round2(Math.max(0, payeGross - PERSONAL_RELIEF_MONTHLY - insuranceReliefApplied));
 
-  const totalEmployeeDeductions = round2(
-    nssf.employee + shif + ahl.employee + pension + payeNet,
-  );
+  const totalEmployeeDeductions = round2(nssf.employee + shif + ahl.employee + pension + payeNet);
   const netPay = round2(gross - totalEmployeeDeductions);
   const employerCost = round2(gross + nssf.employer + ahl.employer + NITA_LEVY);
 
