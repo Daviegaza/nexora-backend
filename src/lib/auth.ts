@@ -6,7 +6,13 @@ import { env } from './env.js';
 import { resolveCaps } from './rbac.js';
 
 export async function hashPassword(plain: string) {
-  return argon2.hash(plain, { type: argon2.argon2id });
+  // OWASP 2024 minimum: argon2id, memoryCost=19MiB, timeCost=2, parallelism=1
+  return argon2.hash(plain, {
+    type: argon2.argon2id,
+    memoryCost: 19456,
+    timeCost: 2,
+    parallelism: 1,
+  });
 }
 export async function verifyPassword(hash: string, plain: string) {
   return argon2.verify(hash, plain);

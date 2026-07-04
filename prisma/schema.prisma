@@ -54,7 +54,7 @@ model User {
   id          String   @id @default(cuid())
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  email       String   @unique
+  email       String
   phone       String?
   name        String
   passwordHash String
@@ -68,10 +68,13 @@ model User {
   status      String   @default("active")
   mfaSecret   String?
   lastLoginAt DateTime?
+  passwordChangedAt DateTime @default(now())
   createdAt   DateTime @default(now())
   refreshTokens RefreshToken[]
   auditLogs   AuditLog[]
+  @@unique([workspaceId, email])
   @@index([workspaceId, role])
+  @@index([email])
 }
 
 model CustomRole {
@@ -88,16 +91,20 @@ model CustomRole {
 }
 
 model RefreshToken {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash   String   @unique
-  userAgent   String?
-  ipAddress   String?
-  expiresAt   DateTime
-  revokedAt   DateTime?
-  createdAt   DateTime @default(now())
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash      String   @unique
+  familyId       String
+  replacedById   String?
+  userAgent      String?
+  ipAddress      String?
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  revokedReason  String?
+  createdAt      DateTime @default(now())
   @@index([userId])
+  @@index([familyId])
 }
 
 model AuditLog {
@@ -183,6 +190,7 @@ model Product {
   expiryDate  DateTime?
   supplierId  String?
   status      String   @default("active")
+  deletedAt   DateTime?
   createdAt   DateTime @default(now())
   stockLevels StockLevel[]
   stockMovements StockMovement[]
@@ -190,6 +198,7 @@ model Product {
   @@unique([workspaceId, sku])
   @@index([workspaceId, barcode])
   @@index([workspaceId, category])
+  @@index([workspaceId, deletedAt])
 }
 
 model StockLevel {
@@ -262,10 +271,53 @@ model Transaction {
   etimsStatus String   @default("pending")
   etimsRef    String?
   etimsQR     String?
+  etimsSubmissionId String?
   createdAt   DateTime @default(now())
+  mpesaPayments MpesaPayment[]
   @@unique([workspaceId, receiptNo])
   @@index([workspaceId, createdAt])
   @@index([workspaceId, branchId, createdAt])
+  @@index([workspaceId, cashierId, createdAt])
+}
+
+// ── Transactional outbox ──────────────────────────────────────────────────
+// Every job that MUST NOT be lost on process crash is written here in the
+// same $transaction as its domain write. BullMQ workers drain it.
+// Pattern: https://microservices.io/patterns/data/transactional-outbox.html
+model JobOutbox {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  kind         String   // e.g. 'etims.file', 'mpesa.reconcile', 'sms.send'
+  payload      Json
+  status       String   @default("pending") // pending | processing | done | failed
+  attempts     Int      @default(0)
+  lastError    String?
+  runAfter     DateTime @default(now())
+  processedAt  DateTime?
+  createdAt    DateTime @default(now())
+  @@index([status, runAfter])
+  @@index([workspaceId, kind, status])
+}
+
+// ── Payments ──────────────────────────────────────────────────────────────
+model MpesaPayment {
+  id                 String   @id @default(cuid())
+  workspaceId        String
+  transactionId      String?
+  transaction        Transaction? @relation(fields: [transactionId], references: [id])
+  checkoutRequestId  String   @unique
+  merchantRequestId  String?
+  phone              String
+  amount             Decimal  @db.Decimal(14,2)
+  accountRef         String
+  status             String   @default("pending") // pending | success | failed | cancelled
+  resultCode         Int?
+  resultDesc         String?
+  receiptRef         String?
+  callbackAt         DateTime?
+  createdAt          DateTime @default(now())
+  @@index([workspaceId, status, createdAt])
+  @@index([phone])
 }
 
 model CartItemRecord {
@@ -476,5 +528,5 @@ model Notification {
   read        Boolean  @default(false)
   href        String?
   createdAt   DateTime @default(now())
-  @@index([workspaceId, userId, read])
+  @@index([workspaceId, userId, read, createdAt])
 }

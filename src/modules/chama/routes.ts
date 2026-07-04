@@ -1,6 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { requireAuth, requireCap } from '../../lib/auth.js';
-import { prisma } from '../../lib/prisma.js';
+import { requireAuth } from '../../lib/auth.js';
 
 export async function registerChamaRoutes(app: FastifyInstance) {
   app.get('/', { preHandler: [requireAuth] }, async (req) => {

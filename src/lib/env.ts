@@ -17,6 +17,8 @@ const schema = z.object({
   KRA_ETIMS_TIN: z.string().optional(),
   KRA_ETIMS_BHF_ID: z.string().default('00'),
   KRA_ETIMS_API_KEY: z.string().optional(),
+  KRA_ETIMS_QR_BASE: z.string().url().optional(),
+  KRA_ETIMS_MODE: z.enum(['OSCU', 'VSCU']).default('VSCU'),
 
   MPESA_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
   MPESA_CONSUMER_KEY: z.string().optional(),
@@ -24,6 +26,7 @@ const schema = z.object({
   MPESA_SHORTCODE: z.string().optional(),
   MPESA_PASSKEY: z.string().optional(),
   MPESA_CALLBACK_BASE: z.string().url().optional(),
+  MPESA_CALLBACK_CIDRS: z.string().optional(),
 
   AI_PROVIDER: z.enum(['anthropic', 'openai']).default('anthropic'),
   AI_MODEL: z.string().default('claude-haiku-4-5-20251001'),
